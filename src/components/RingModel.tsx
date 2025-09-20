@@ -202,8 +202,8 @@ export default function RingModel({ selection }: RingModelProps) {
     if (gemMaterialRef.current) gemMaterialRef.current.uniforms.time.value = time;
 
     if (ringRef.current) {
-      ringRef.current.rotation.x += delta * 0.5; // rotate X-axis
-      ringRef.current.rotation.y += delta * 0.2; // optional: slow Y-axis rotation
+      ringRef.current.rotation.x += delta * 0.01; // rotate X-axis
+      ringRef.current.rotation.z += delta * 0.01; // optional: slow Y-axis rotation
     }
   });
 
