@@ -10,9 +10,12 @@ interface RingPreviewProps {
 
 export default function RingPreview({ selection }: RingPreviewProps) {
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-xl font-semibold mb-4">3D Preview</h2>
-      <div className="aspect-square w-full h-80 bg-gray-100 rounded-lg overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-gray-100">
+      {/* Optional header */}
+      <h2 className="text-2xl font-semibold text-center py-4 bg-white shadow-md">3D Preview</h2>
+
+      {/* Canvas fills the remaining space */}
+      <div className="w-full h-full">
         <Canvas
           camera={{ position: [5, 5, 5], fov: 45 }}
           shadows

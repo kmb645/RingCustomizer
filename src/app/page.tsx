@@ -35,23 +35,7 @@ export default function Home() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Left Column - Customization Options */}
-          <div className="space-y-8">
-            <RingMaterialSelector
-              materials={ringState.materials}
-              selectedMaterial={ringState.currentSelection.material}
-              onSelect={(material) => updateSelection({ material })}
-            />
-            {/* <RingStoneSelector
-              stones={ringState.stones}
-              selectedStone={ringState.currentSelection.stone}
-              onSelect={(stone) => updateSelection({ stone })}
-            />
-            <RingSizeSelector
-              sizes={ringState.sizes}
-              selectedSize={ringState.currentSelection.size}
-              onSelect={(size) => updateSelection({ size })}
-            /> */}
-          </div>
+         
 
           {/* Right Column - Preview and Summary */}
           <div className="space-y-8">
