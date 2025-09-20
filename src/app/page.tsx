@@ -3,8 +3,8 @@
 
 import { useState } from 'react';
 import { initialRingState } from '@/data/sampleData';
-import { RingState, CustomRing } from '@/types/ring';
-import RingMaterialSelector from '@/components/RingMaterialSelector';
+import { RingState } from '@/types/ring';
+// import RingMaterialSelector from '@/components/RingMaterialSelector';
 import RingPreview from '@/components/RingPreview';
 // import RingMaterialSelector from '@/components/RingMaterialSelector';
 // import RingStoneSelector from '@/components/RingStoneSelector';
@@ -14,19 +14,19 @@ import RingPreview from '@/components/RingPreview';
 
 export default function Home() {
   // Initialize our state with the sample data
-  const [ringState, setRingState] = useState<RingState>(initialRingState);
+  const [ringState] = useState<RingState>(initialRingState);
 
   // Helper function to update the current selection
-  const updateSelection = (newSelection: Partial<CustomRing>) => {
-    setRingState(prevState => ({
-      ...prevState,
-      currentSelection: {
-        ...prevState.currentSelection,
-        ...newSelection,
-      }
-    }));
-  };
-
+  // const updateSelection = (newSelection: Partial<CustomRing>) => {
+  //   setRingState(prevState => ({
+  //     ...prevState,
+  //     currentSelection: {
+  //       ...prevState.currentSelection,
+  //       ...newSelection,
+  //     }
+  //   }));
+  // };
+// TODO: I need RingPreview will be full screen
   return (
     <main className="min-h-screen p-8 bg-gradient-to-b from-blue-50 to-indigo-100">
       <div className="max-w-6xl mx-auto">
@@ -34,9 +34,6 @@ export default function Home() {
         <p className="text-center text-gray-600 mb-10">Design your perfect ring.</p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Left Column - Customization Options */}
-         
-
           {/* Right Column - Preview and Summary */}
           <div className="space-y-8">
             <RingPreview selection={ringState.currentSelection} />

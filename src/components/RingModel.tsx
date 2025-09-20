@@ -4,7 +4,6 @@ import { useRef, useMemo } from 'react';
 import { useFrame, extend } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
-import { Mesh } from 'three';
 import { CustomRing } from '@/types/ring';
 
 // ====================== SHADERS ======================
@@ -166,36 +165,44 @@ interface RingModelProps {
 export default function RingModel({ selection }: RingModelProps) {
   const metalMaterialRef = useRef<MetalMaterial>(null);
   const gemMaterialRef = useRef<GemMaterial>(null);
-  const ringRef = useRef<THREE.Group>(null); // Add a ref for the group
+  const ringRef = useRef<THREE.Group>(null);
 
   const { scene } = useGLTF('/model/ring_gold_with_diamond/scene.gltf');
 
   const filteredScene = useMemo(() => {
     const clone = scene.clone(true);
-    clone.scale.set(3, 3, 3); // scale up
+    clone.scale.set(3, 3, 3);
+
     clone.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        if (child.name.toLowerCase().includes('metal')) {
-          child.material = new MetalMaterial();
-          (child.material as any).uniforms.color.value = new THREE.Color(selection.material.color);
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+
+        if (mesh.name.toLowerCase().includes('metal')) {
+          const material = new MetalMaterial();
+          material.uniforms.color.value = new THREE.Color(selection.material.color);
+          mesh.material = material;
         }
-        if (child.name.toLowerCase().includes('stone')) {
-          child.material = new GemMaterial();
-          (child.material as any).uniforms.color.value = new THREE.Color(getStoneColor(selection.stone.name));
+
+        if (mesh.name.toLowerCase().includes('stone')) {
+          const material = new GemMaterial();
+          material.uniforms.color.value = new THREE.Color(getStoneColor(selection.stone.name));
+          mesh.material = material;
         }
       }
     });
+
     return clone;
   }, [scene, selection]);
 
   // Animate time + rotation
   useFrame((state, delta) => {
     const time = state.clock.getElapsedTime();
+
     if (metalMaterialRef.current) metalMaterialRef.current.uniforms.time.value = time;
     if (gemMaterialRef.current) gemMaterialRef.current.uniforms.time.value = time;
 
     if (ringRef.current) {
-      // ringRef.current.rotation.x += delta * 0.5; // rotate X-axis
+      ringRef.current.rotation.x += delta * 0.5; // rotate X-axis
       ringRef.current.rotation.y += delta * 0.2; // optional: slow Y-axis rotation
     }
   });

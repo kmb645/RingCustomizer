@@ -1,14 +1,14 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Mesh, CylinderGeometry, MeshStandardMaterial, TorusGeometry, SphereGeometry } from 'three';
+import { Mesh } from 'three';
 import { CustomRing } from '@/types/ring';
-
+import * as THREE from "three"
 interface EnhancedRingModelProps {
   selection: CustomRing;
 }
 
 export default function EnhancedRingModel({ selection }: EnhancedRingModelProps) {
-  const ringRef = useRef<Mesh>(null);
+  // const ringRef = useRef<Mesh>(null);
   const groupRef = useRef<THREE.Group>(null);
 
   useFrame((state) => {
