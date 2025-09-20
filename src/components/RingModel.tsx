@@ -1,229 +1,220 @@
-import { useRef } from 'react';
-import { useFrame, extend } from '@react-three/fiber';
-import { Mesh, CylinderGeometry, MeshStandardMaterial, TorusGeometry } from 'three';
-import { CustomRing } from '@/types/ring';
-import * as THREE from 'three';
+'use client'
 
-// Custom shader for the metal band
+import { useRef, useMemo } from 'react';
+import { useFrame, extend } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
+import * as THREE from 'three';
+import { Mesh } from 'three';
+import { CustomRing } from '@/types/ring';
+
+// ====================== SHADERS ======================
 const metalVertexShader = `
-  varying vec2 vUv;
   varying vec3 vNormal;
-  varying vec3 vPosition;
-  
+  varying vec3 vWorldPosition;
+  varying vec3 vViewPosition;
+
   void main() {
-    vUv = uv;
     vNormal = normalize(normalMatrix * normal);
-    vPosition = position;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    vWorldPosition = worldPosition.xyz;
+
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vViewPosition = -mvPosition.xyz;
+
+    gl_Position = projectionMatrix * mvPosition;
   }
 `;
 
 const metalFragmentShader = `
   uniform vec3 color;
   uniform float time;
-  varying vec2 vUv;
+
   varying vec3 vNormal;
-  varying vec3 vPosition;
-  
+  varying vec3 vWorldPosition;
+  varying vec3 vViewPosition;
+
+  vec3 sampleEnvironment(vec3 reflectDir) {
+    float horizon = smoothstep(-0.2, 0.5, reflectDir.y);
+    vec3 skyColor = mix(vec3(0.3, 0.5, 0.7), vec3(0.8, 0.8, 0.9), horizon);
+    vec3 groundColor = vec3(0.2, 0.2, 0.3);
+    float spec = smoothstep(0.97, 1.0, dot(normalize(reflectDir), normalize(vec3(0.0, 1.0, 0.0))));
+    vec3 highlight = vec3(1.2) * spec * 0.8;
+    return mix(groundColor, skyColor, smoothstep(-0.1, 0.3, reflectDir.y)) + highlight;
+  }
+
   void main() {
-    // Base color with slight variation
-    vec3 baseColor = color;
-    
-    // Create micro-scratches and imperfections
-    float scratches = 0.0;
-    scratches += sin(vPosition.x * 200.0 + time * 0.5) * 0.02;
-    scratches += sin(vPosition.y * 180.0 + time * 0.3) * 0.02;
-    scratches += sin(vPosition.z * 220.0 + time * 0.7) * 0.02;
-    
-    // Add some grain/noise for realistic metal surface
-    float noise = fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) * 0.05;
-    
-    // Fresnel effect for edges
-    float fresnel = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 2.0);
-    
-    // Combine all effects
-    vec3 finalColor = baseColor + scratches + noise + fresnel * 0.2;
-    
+    vec3 normal = normalize(vNormal);
+    vec3 viewDir = normalize(vViewPosition);
+    vec3 lightDir = normalize(vec3(0.0, 1.0, 0.0));
+
+    vec3 reflectDir = reflect(-viewDir, normal);
+    vec3 reflection = sampleEnvironment(reflectDir);
+
+    float diff = max(dot(normal, lightDir), 0.0);
+    diff = pow(diff, 0.8);
+
+    vec3 halfDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(normal, halfDir), 0.0), 48.0);
+    spec = pow(spec, 0.6) * 1.8;
+
+    float rim = 1.0 - max(dot(normal, viewDir), 0.0);
+    rim = pow(rim, 2.0) * 0.8;
+
+    float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 3.0);
+    vec3 reflectionColor = reflection * (fresnel * 0.6 + 0.15);
+
+    vec3 ambient = vec3(0.12);
+    vec3 diffuseComponent = color * (diff * 1.1 + ambient);
+    vec3 specularComponent = vec3(1.5) * spec * 1.8;
+    vec3 rimComponent = vec3(0.8) * rim * 0.6;
+    vec3 reflectionComponent = reflectionColor * 0.9;
+
+    vec3 finalColor = diffuseComponent + specularComponent + rimComponent + reflectionComponent;
+    float noise = fract(sin(dot(vWorldPosition.xy, vec2(12.9898, 78.233))) * 43758.5453) * 0.06;
+    finalColor += noise;
+    finalColor = pow(finalColor, vec3(0.95));
+
     gl_FragColor = vec4(finalColor, 1.0);
   }
 `;
 
-// Custom shader for gemstones
-const gemVertexShader = `
-  varying vec2 vUv;
-  varying vec3 vNormal;
-  varying vec3 vPosition;
-  
-  void main() {
-    vUv = uv;
-    vNormal = normalize(normalMatrix * normal);
-    vPosition = position;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
+const gemVertexShader = metalVertexShader;
 
 const gemFragmentShader = `
   uniform vec3 color;
   uniform float time;
-  varying vec2 vUv;
+
   varying vec3 vNormal;
-  varying vec3 vPosition;
-  
-  // Simple noise function for internal gem structure
-  float rand(vec2 co) {
-    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+  varying vec3 vWorldPosition;
+  varying vec3 vViewPosition;
+
+  float generateSparkle(vec3 position, float frequency, float speed) {
+    return sin(time * speed + position.x * frequency) *
+           cos(time * speed * 1.3 + position.y * frequency * 0.8) *
+           sin(time * speed * 0.7 + position.z * frequency * 1.2);
   }
-  
+
   void main() {
-    // Base color
-    vec3 baseColor = color;
-    
-    // Create internal reflections and facets
-    float facetPattern = sin(vPosition.x * 30.0) * sin(vPosition.y * 30.0) * sin(vPosition.z * 30.0);
-    facetPattern = abs(facetPattern);
-    
-    // Add some sparkle with time-varying highlights
-    float sparkle = sin(time * 2.0 + vPosition.x * 100.0) * 
-                   cos(time * 1.5 + vPosition.y * 90.0) * 
-                   sin(time * 2.5 + vPosition.z * 110.0);
-    sparkle = max(0.0, sparkle) * 0.3;
-    
-    // Fresnel effect for edges
-    float fresnel = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 4.0);
-    
-    // Combine effects
-    vec3 finalColor = mix(baseColor, vec3(1.0), facetPattern * 0.3 + sparkle + fresnel * 0.5);
-    
-    gl_FragColor = vec4(finalColor, 0.9);
+    vec3 normal = normalize(vNormal);
+    vec3 viewDir = normalize(vViewPosition);
+    vec3 lightDir = normalize(vec3(0.0, 1.0, 0.0));
+
+    float diff = max(dot(normal, lightDir), 0.0);
+    diff = pow(diff, 0.7) * 1.2;
+
+    vec3 halfDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(normal, halfDir), 0.0), 24.0);
+    spec = pow(spec, 0.5) * 2.5;
+
+    float rim = 1.0 - max(dot(normal, viewDir), 0.0);
+    rim = pow(rim, 1.5) * 1.2;
+
+    vec3 baseColor = color * (diff * 1.2 + 0.25);
+
+    float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 2.0);
+    vec3 reflection = mix(vec3(0.4), vec3(0.8), fresnel) * 1.0;
+
+    vec3 finalColor = baseColor + spec * vec3(1.5) + rim * color * 0.6 + reflection;
+
+    float sparkle1 = generateSparkle(vWorldPosition, 60.0, 2.0);
+    float sparkle2 = generateSparkle(vWorldPosition, 90.0, 3.0);
+    sparkle1 = max(0.0, sparkle1) * 0.25;
+    sparkle2 = max(0.0, sparkle2) * 0.2;
+    finalColor += vec3(1.5) * (sparkle1 + sparkle2);
+
+    finalColor = pow(finalColor, vec3(0.9));
+
+    gl_FragColor = vec4(finalColor, 0.85);
   }
 `;
 
-// Custom shader material for the metal
+// ====================== MATERIALS ======================
 class MetalMaterial extends THREE.ShaderMaterial {
   constructor() {
     super({
       uniforms: {
         color: { value: new THREE.Color(0xcccccc) },
-        time: { value: 0 }
+        time: { value: 0 },
       },
       vertexShader: metalVertexShader,
-      fragmentShader: metalFragmentShader
+      fragmentShader: metalFragmentShader,
     });
   }
 }
 
-// Custom shader material for gems
 class GemMaterial extends THREE.ShaderMaterial {
   constructor() {
     super({
       uniforms: {
         color: { value: new THREE.Color(0xffffff) },
-        time: { value: 0 }
+        time: { value: 0 },
       },
       vertexShader: gemVertexShader,
       fragmentShader: gemFragmentShader,
-      transparent: true
+      transparent: true,
     });
   }
 }
 
-// Extend Three.js with our custom materials
 extend({ MetalMaterial, GemMaterial });
 
+// ====================== COMPONENT ======================
 interface RingModelProps {
   selection: CustomRing;
 }
 
 export default function RingModel({ selection }: RingModelProps) {
-  const ringRef = useRef<Mesh>(null);
-  const stoneRef = useRef<Mesh>(null);
   const metalMaterialRef = useRef<MetalMaterial>(null);
   const gemMaterialRef = useRef<GemMaterial>(null);
+  const ringRef = useRef<THREE.Group>(null); // Add a ref for the group
 
-  // Update shader uniforms each frame
-  useFrame((state) => {
+  const { scene } = useGLTF('/model/ring_gold_with_diamond/scene.gltf');
+
+  const filteredScene = useMemo(() => {
+    const clone = scene.clone(true);
+    clone.scale.set(3, 3, 3); // scale up
+    clone.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        if (child.name.toLowerCase().includes('metal')) {
+          child.material = new MetalMaterial();
+          (child.material as any).uniforms.color.value = new THREE.Color(selection.material.color);
+        }
+        if (child.name.toLowerCase().includes('stone')) {
+          child.material = new GemMaterial();
+          (child.material as any).uniforms.color.value = new THREE.Color(getStoneColor(selection.stone.name));
+        }
+      }
+    });
+    return clone;
+  }, [scene, selection]);
+
+  // Animate time + rotation
+  useFrame((state, delta) => {
+    const time = state.clock.getElapsedTime();
+    if (metalMaterialRef.current) metalMaterialRef.current.uniforms.time.value = time;
+    if (gemMaterialRef.current) gemMaterialRef.current.uniforms.time.value = time;
+
     if (ringRef.current) {
-      ringRef.current.rotation.y = state.clock.getElapsedTime() * 0.1;
-    }
-    if (stoneRef.current) {
-      stoneRef.current.rotation.y = state.clock.getElapsedTime() * 0.1;
-    }
-    if (metalMaterialRef.current) {
-      metalMaterialRef.current.uniforms.time.value = state.clock.getElapsedTime();
-    }
-    if (gemMaterialRef.current) {
-      gemMaterialRef.current.uniforms.time.value = state.clock.getElapsedTime();
+      // ringRef.current.rotation.x += delta * 0.5; // rotate X-axis
+      ringRef.current.rotation.y += delta * 0.2; // optional: slow Y-axis rotation
     }
   });
 
   return (
-    <group>
-      {/* Main Ring Band - using a more detailed geometry */}
-      <mesh ref={ringRef} castShadow receiveShadow>
-        <torusGeometry args={[1, 0.15, 32, 64]} />
-        <metalMaterial 
-          ref={metalMaterialRef}
-          uniforms-color-value={new THREE.Color(selection.material.color)}
-        />
-      </mesh>
-
-      {/* Stone Setting (only if a stone is selected) */}
-      {selection.stone.id !== 'none' && (
-        <group>
-          {/* Stone Setting Base with prongs */}
-          <mesh position={[0, 1.15, 0]} castShadow receiveShadow>
-            <cylinderGeometry args={[0.2, 0.25, 0.1, 16]} />
-            <metalMaterial 
-              uniforms-color-value={new THREE.Color(selection.material.color)}
-            />
-          </mesh>
-
-          {/* Prongs for the stone setting */}
-          {[...Array(4)].map((_, i) => (
-            <mesh
-              key={i}
-              position={[
-                0.2 * Math.cos((i * Math.PI) / 2),
-                1.2,
-                0.2 * Math.sin((i * Math.PI) / 2)
-              ]}
-              rotation={[0, (i * Math.PI) / 2, 0]}
-              castShadow
-            >
-              <coneGeometry args={[0.03, 0.1, 8]} />
-              <metalMaterial 
-                uniforms-color-value={new THREE.Color(selection.material.color)}
-              />
-            </mesh>
-          ))}
-
-          {/* The Gem Stone with more facets */}
-          <mesh
-            ref={stoneRef}
-            position={[0, 1.2, 0]}
-            castShadow
-            receiveShadow
-          >
-            <cylinderGeometry args={[0.18, 0.18, 0.15, 32]} />
-            <gemMaterial 
-              ref={gemMaterialRef}
-              uniforms-color-value={new THREE.Color(getStoneColor(selection.stone.name))}
-            />
-          </mesh>
-        </group>
-      )}
+    <group ref={ringRef} scale={[3, 3, 3]}>
+      <primitive object={filteredScene} />
     </group>
   );
 }
 
-// Helper function to get stone colors
+// ====================== HELPER ======================
 function getStoneColor(stoneName: string): string {
   const colors: { [key: string]: string } = {
-    'Diamond': '#FFFFFF',
+    Diamond: '#FFFFFF',
     'Blue Sapphire': '#0F52BA',
-    'Ruby': '#E0115F',
-    'Emerald': '#50C878',
-    'Amethyst': '#9966CC',
+    Ruby: '#E0115F',
+    Emerald: '#50C878',
+    Amethyst: '#9966CC',
   };
   return colors[stoneName] || '#CCCCCC';
 }
