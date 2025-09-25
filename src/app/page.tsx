@@ -26,7 +26,6 @@ export default function Home() {
   //     }
   //   }));
   // };
-// TODO: I need RingPreview will be full screen
   return (
     <main className="min-h-screen p-8 bg-gradient-to-b from-blue-50 to-indigo-100">
       <div className="max-w-6xl mx-auto">

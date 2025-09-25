@@ -166,23 +166,30 @@ export default function RingModel({ selection }: RingModelProps) {
   const metalMaterialRef = useRef<MetalMaterial>(null);
   const gemMaterialRef = useRef<GemMaterial>(null);
   const ringRef = useRef<THREE.Group>(null);
-
-  const { scene } = useGLTF('/model/ring_gold_with_diamond/scene.gltf');
+  
+  // const { scene } = useGLTF('/model/ring_gold_with_diamond/scene.gltf');
+  const { scene } = useGLTF('/model/jlcerda01.glb');
 
   const filteredScene = useMemo(() => {
     const clone = scene.clone(true);
-    clone.scale.set(3, 3, 3);
-
+    clone.scale.set(1, 1, 1);
+  
+    // ✅ Center the model
+    const box = new THREE.Box3().setFromObject(clone);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    clone.position.sub(center); // shift model so center = (0,0,0)
+  
     clone.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
-
+  
         if (mesh.name.toLowerCase().includes('metal')) {
           const material = new MetalMaterial();
           material.uniforms.color.value = new THREE.Color(selection.material.color);
           mesh.material = material;
         }
-
+  
         if (mesh.name.toLowerCase().includes('stone')) {
           const material = new GemMaterial();
           material.uniforms.color.value = new THREE.Color(getStoneColor(selection.stone.name));
@@ -190,9 +197,10 @@ export default function RingModel({ selection }: RingModelProps) {
         }
       }
     });
-
+  
     return clone;
   }, [scene, selection]);
+  
 
   // Animate time + rotation
   useFrame((state, delta) => {
@@ -202,13 +210,13 @@ export default function RingModel({ selection }: RingModelProps) {
     if (gemMaterialRef.current) gemMaterialRef.current.uniforms.time.value = time;
 
     if (ringRef.current) {
-      ringRef.current.rotation.x += delta * 0.01; // rotate X-axis
-      ringRef.current.rotation.z += delta * 0.01; // optional: slow Y-axis rotation
+      ringRef.current.rotation.y += delta * 0.05; // rotate X-axis
+      // ringRef.current.rotation.z += delta * 0.01; // optional: slow Y-axis rotation
     }
   });
 
   return (
-    <group ref={ringRef} scale={[3, 3, 3]}>
+    <group ref={ringRef} scale={[0.05, 0.05, 0.05]}>
       <primitive object={filteredScene} />
     </group>
   );
